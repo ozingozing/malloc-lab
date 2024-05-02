@@ -86,7 +86,6 @@ static void *best_fit(size_t asize);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
 //
-
 /*
  * mm_init - initialize the malloc package.
  */
@@ -101,7 +100,7 @@ int mm_init(void)
     PUT(heap_listp + (3 * WSIZE), PACK(0, 1));
     find_ptr = heap_listp; // find_ptr 은 heap_listp의 주소값을 복사한다.
     heap_listp += (DSIZE);
-
+    lastPtr = heap_listp;
     if ((extend_heap(CHUNKSIZE / WSIZE)) == NULL)
         return -1;
 
@@ -135,7 +134,6 @@ static void *coalesce(void *bp)
 
     if (prev_alloc && next_alloc)
     {
-        lastPtr = bp;
         return bp;
     }
     else if (prev_alloc && !next_alloc)
@@ -205,8 +203,8 @@ void *mm_malloc(size_t size)
     bp = extend_heap(MAX(asize, CHUNKSIZE) / WSIZE);
     if (bp == NULL)
         return NULL;
-    lastPtr = bp;
     place(bp, asize);
+    lastPtr = bp;
     return bp;
 }
 
@@ -307,7 +305,6 @@ void mm_free(void *bp)
     if (bp == 0)
         return;
     size_t size = GET_SIZE(HDRP(bp));
-
     PUT(HDRP(bp), PACK(size, 0));
     PUT(FTRP(bp), PACK(size, 0));
     PUT(SUCC(bp), 0);
@@ -350,6 +347,7 @@ void *mm_realloc(void *ptr, size_t size)
         // 현재 블록과 다음 블록을 하나의 블록으로 취급해도 크기의 문제가 발생하지 않음
         // malloc을 하지 않아도 됨 -> 메모리 공간 및 시간적 이득을 얻을 수 있음
         {
+            fix_link(NEXT_BLKP(oldptr));
             PUT(HDRP(oldptr), PACK(next_size, 1)); // 현재 블록의 Header Block에, (현재 블록 사이즈 + 다음 블록 사이즈) 크기와 Allocated 상태 기입
             PUT(FTRP(oldptr), PACK(next_size, 1)); // 현재 블록의 Footer Block에, (현재 블록 사이즈 + 다음 블록 사이즈) 크기와 Allocated 상태 기입
             lastPtr = oldptr;                        // next_fit 사용을 위한 포인터 동기화
@@ -361,8 +359,8 @@ void *mm_realloc(void *ptr, size_t size)
         // malloc을 하지 않아도 됨 -> 메모리 공간 및 시간적 이득을 얻을 수 있음
         {
             void *prev_ptr = PREV_BLKP(oldptr); // 이전 블록의 bp
-
             memmove(prev_ptr, oldptr, copySize);     // 이전 블록의 bp로 현재 block의 메모리 영역을 옮긴다
+            fix_link(PREV_BLKP(oldptr));
             PUT(HDRP(prev_ptr), PACK(prev_size, 1)); // 이전 블록의 Header Block에, (이전 블록 사이즈 + 현재 블록 사이즈) 크기와 Allocated 상태 기입
             PUT(FTRP(prev_ptr), PACK(prev_size, 1)); // 이전 블록의 Footer Block에, (이전 블록 사이즈 + 현재 블록 사이즈) 크기와 Allocated 상태 기입
             lastPtr = prev_ptr;                        // next_fit 사용을 위한 포인터 동기화
@@ -374,8 +372,9 @@ void *mm_realloc(void *ptr, size_t size)
         // malloc을 하지 않아도 됨 -> 메모리 공간 및 시간적 이득을 어등ㄹ 수 있음
         {
             void *prev_ptr = PREV_BLKP(oldptr); // 이전 블록의 bp
-
-            memmove(prev_ptr, oldptr, copySize);                            // 이전 블록의 bp로 현재 block의 메모리 영역을 옮긴다
+            memmove(prev_ptr, oldptr, copySize);
+            fix_link(NEXT_BLKP(oldptr));
+            fix_link(PREV_BLKP(oldptr));                            // 이전 블록의 bp로 현재 block의 메모리 영역을 옮긴다
             PUT(HDRP(prev_ptr), PACK(prev_size + copySize + next_size, 1)); // 이전 블록의 Header Block에, (이전 블록 사이즈 + 현재 블록 사이즈 + 다음 블록 사이즈) 크기와 Allocated 상태 기입
             PUT(FTRP(prev_ptr), PACK(prev_size + copySize + next_size, 1)); // 이전 블록의 Footer Block에, (이전 블록 사이즈 + 현재 블록 사이즈 + 다음 블록 사이즈) 크기와 Allocated 상태 기입
             lastPtr = prev_ptr;                                               // next_fit 사용을 위한 포인터 동기화
@@ -390,11 +389,12 @@ void *mm_realloc(void *ptr, size_t size)
             }
             memmove(newptr, oldptr, size + DSIZE); // payload 복사
             lastPtr = newptr;                       // next_fit 사용을 위한 포인터 동기화
+            add_free(oldptr);
             mm_free(oldptr);                      // 기존의 블록은 Free block으로 바꾼다
             return newptr;                        // 새롭게 할당된 주소의 포인터를 반환
         }
     }
-
+    //Defualt
     // if (ptr == NULL) {
     //     return mm_malloc(size);
     // }
