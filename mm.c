@@ -86,7 +86,6 @@ static void *best_fit(size_t asize);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
 //
-
 /*
  * mm_init - initialize the malloc package.
  */
