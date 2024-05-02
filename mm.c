@@ -69,7 +69,7 @@ team_t team = {
 // 1 == NextFit (묵시적 가용 리스트)
 // 2 == BestFit (묵시적 가용 리스트)
 // 3 == FindFit (명시적 가용 리스트)
-#define Fit 1
+#define Fit 3
 
 static char *heap_listp = NULL;
 static char *lastPtr = NULL;
@@ -238,27 +238,18 @@ static void *next_fit(size_t asize)
 
 static void *best_fit(size_t asize)
 {
-    void *best_bp = NULL;
-    size_t min_diff = __SIZE_MAX__;
-    void *current_bp = heap_listp;
-
-    while ((GET_SIZE(HDRP(current_bp))) > 0)
+    void *bp;
+    void *bestp = NULL;
+    
+    for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp))
     {
-        if (!GET_ALLOC(HDRP(current_bp)) && asize <= GET_SIZE(HDRP(current_bp)))
+        if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp))))
         {
-            size_t current_diff = GET_SIZE(HDRP(current_bp)) - asize;
-            if (current_bp < min_diff)
-            {
-                best_bp = current_bp;
-                min_diff = current_bp;
-
-                if (min_diff == 0)
-                    break;
-            }
+            bestp = bp;
         }
-        current_bp = NEXT_BLKP(current_bp);
     }
-    return best_bp;
+
+    return bestp;
 }
 
 static void *find_fit(size_t asize)
@@ -326,6 +317,7 @@ void *mm_realloc(void *ptr, size_t size)
 
     if (size == 0) // 입력 사이즈가 0이면, 입력 포인터의 블록을 해제 (예외처리)
     {
+        add_free(ptr);
         mm_free(ptr);
         return NULL;
     }
