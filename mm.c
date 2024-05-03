@@ -65,7 +65,7 @@ team_t team = {
 #define SUCC(bp) ((char *)(bp + WSIZE)) // 이후 블록의 bp
 //
 
-// 0 == FirstFit(묵시적 가용 리스트)
+// 0 == FirstFit(묵시적 가용 리스트) //안됨
 // 1 == NextFit (묵시적 가용 리스트)
 // 2 == BestFit (묵시적 가용 리스트)
 // 3 == FindFit (명시적 가용 리스트)
@@ -331,6 +331,7 @@ void *mm_realloc(void *ptr, size_t size)
         size = ALIGN(size + DSIZE);
     if (size + DSIZE <= copySize) // (재할당 하려는 블록 사이즈 + 8 bytes(Header + Footer)) <= 현재 블록 사이즈
     {
+        memmove(oldptr, oldptr, size + DSIZE);
         return oldptr; // 현재 블록에 재할당해도 문제 없기 때문에, 포인터만 반환
     }
     else // (재할당 하려는 블록 사이즈 + 8 bytes) > 현재 블록 사이즈
@@ -338,17 +339,15 @@ void *mm_realloc(void *ptr, size_t size)
     {
         size_t next_size = copySize + GET_SIZE(HDRP(NEXT_BLKP(oldptr))); // 현재 블록 사이즈 + 다음 블록 사이즈 = next_size
         size_t prev_size = copySize + GET_SIZE(HDRP(PREV_BLKP(oldptr))); // 이전 블록 사이즈
-        fix_link((oldptr));
-        if (!GET_ALLOC(HDRP(NEXT_BLKP(oldptr))) && (size <= next_size))
+        fix_link(oldptr);
+        if (!GET_ALLOC(HDRP(NEXT_BLKP(oldptr))) && (size + DSIZE <= next_size))
         // 다음 블록이 Free block이고, (재할당 하려는 블록의 사이즈 + 8 bytes) <= (현재 블록 사이즈 + 다음 블록 사이즈)
         // 현재 블록과 다음 블록을 하나의 블록으로 취급해도 크기의 문제가 발생하지 않음
         // malloc을 하지 않아도 됨 -> 메모리 공간 및 시간적 이득을 얻을 수 있음
         {
-
             PUT(HDRP(oldptr), PACK(next_size, 1)); // 현재 블록의 Header Block에, (현재 블록 사이즈 + 다음 블록 사이즈) 크기와 Allocated 상태 기입
             PUT(FTRP(oldptr), PACK(next_size, 1)); // 현재 블록의 Footer Block에, (현재 블록 사이즈 + 다음 블록 사이즈) 크기와 Allocated 상태 기입
             lastPtr = oldptr;                      // next_fit 사용을 위한 포인터 동기화
-            // fix_link(NEXT_BLKP(oldptr));
             return oldptr;
         }
         else if (!GET_ALLOC(HDRP(PREV_BLKP(oldptr))) && (size + DSIZE <= prev_size))
@@ -362,7 +361,7 @@ void *mm_realloc(void *ptr, size_t size)
             PUT(HDRP(prev_ptr), PACK(prev_size, 1)); // 이전 블록의 Header Block에, (이전 블록 사이즈 + 현재 블록 사이즈) 크기와 Allocated 상태 기입
             PUT(FTRP(prev_ptr), PACK(prev_size, 1)); // 이전 블록의 Footer Block에, (이전 블록 사이즈 + 현재 블록 사이즈) 크기와 Allocated 상태 기입
             lastPtr = prev_ptr;                      // next_fit 사용을 위한 포인터 동기화
-            fix_link(((prev_ptr)));
+            fix_link(prev_ptr);
             return prev_ptr;
         }
         else if (!GET_ALLOC(HDRP(NEXT_BLKP(oldptr))) && !GET_ALLOC(HDRP(PREV_BLKP(oldptr))) && (size + DSIZE <= next_size + copySize + prev_size))
@@ -375,19 +374,19 @@ void *mm_realloc(void *ptr, size_t size)
             PUT(HDRP(prev_ptr), PACK(prev_size + copySize + next_size, 1)); // 이전 블록의 Header Block에, (이전 블록 사이즈 + 현재 블록 사이즈 + 다음 블록 사이즈) 크기와 Allocated 상태 기입
             PUT(FTRP(prev_ptr), PACK(prev_size + copySize + next_size, 1)); // 이전 블록의 Footer Block에, (이전 블록 사이즈 + 현재 블록 사이즈 + 다음 블록 사이즈) 크기와 Allocated 상태 기입
             lastPtr = prev_ptr;                                             // next_fit 사용을 위한 포인터 동기화
-            fix_link(((prev_ptr)));
+            fix_link(prev_ptr);
             fix_link(NEXT_BLKP(NEXT_BLKP(prev_ptr)));
             return prev_ptr;
         }
         else // 위 케이스에 모두 해당되지 않아, 결국 malloc을 해야 하는 경우
         {
             void *newptr = mm_malloc(size + DSIZE); // (할당하려는 크기 + 8 bytes)만큼 새롭게 할당
-            if (newptr == NULL)             // 새로 할당한 주소가 NULL일 경우 (예외처리)
+            if (newptr == NULL)                     // 새로 할당한 주소가 NULL일 경우 (예외처리)
             {
                 return NULL;
             }
             memmove(newptr, oldptr, size + DSIZE); // payload 복사
-            lastPtr = newptr;              // next_fit 사용을 위한 포인터 동기화
+            lastPtr = newptr;                      // next_fit 사용을 위한 포인터 동기화
             fix_link(newptr);
             mm_free(oldptr); // 기존의 블록은 Free block으로 바꾼다
             return newptr;   // 새롭게 할당된 주소의 포인터를 반환
