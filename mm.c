@@ -69,7 +69,7 @@ team_t team = {
 // 1 == NextFit (묵시적 가용 리스트)
 // 2 == BestFit (묵시적 가용 리스트)
 // 3 == FindFit (명시적 가용 리스트)
-#define Fit 3
+#define Fit 2
 
 static char *heap_listp = NULL;
 static char *lastPtr = NULL;
@@ -238,18 +238,30 @@ static void *next_fit(size_t asize)
 
 static void *best_fit(size_t asize)
 {
-    void *bp;
-    void *bestp = NULL;
+    // void *bp;
+    // void *bestp = NULL;
 
-    for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp))
+    // for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp))
+    // {
+    //     if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp))))
+    //     {
+    //         bestp = bp;
+    //     }
+    // }
+
+    // return bestp;
+
+    char *get_address = GET(find_ptr);
+    void *temp = NULL;
+    while (get_address != NULL)
     {
-        if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp))))
+        if (!GET_ALLOC(HDRP(get_address)) &&GET_SIZE(HDRP(get_address)) >= asize)
         {
-            bestp = bp;
+            temp = get_address;
         }
+        get_address = GET(SUCC(get_address));
     }
-
-    return bestp;
+    return temp; // not fit any
 }
 
 static void *find_fit(size_t asize)
@@ -323,7 +335,6 @@ void *mm_realloc(void *ptr, size_t size)
     }
 
     void *oldptr = ptr;
-    void *temp = ptr;
     size_t copySize = GET_SIZE(HDRP(oldptr)); // 재할당하려는 블록의 사이즈
     if (size <= DSIZE)
         size = 2 * DSIZE;
@@ -375,7 +386,6 @@ void *mm_realloc(void *ptr, size_t size)
             PUT(FTRP(prev_ptr), PACK(prev_size + copySize + next_size, 1)); // 이전 블록의 Footer Block에, (이전 블록 사이즈 + 현재 블록 사이즈 + 다음 블록 사이즈) 크기와 Allocated 상태 기입
             lastPtr = prev_ptr;                                             // next_fit 사용을 위한 포인터 동기화
             fix_link(prev_ptr);
-            fix_link(NEXT_BLKP(NEXT_BLKP(prev_ptr)));
             return prev_ptr;
         }
         else // 위 케이스에 모두 해당되지 않아, 결국 malloc을 해야 하는 경우
