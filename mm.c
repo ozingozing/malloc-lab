@@ -255,7 +255,7 @@ static void *best_fit(size_t asize)
     void *temp = NULL;
     while (get_address != NULL)
     {
-        if (!GET_ALLOC(HDRP(get_address)) &&GET_SIZE(HDRP(get_address)) >= asize)
+        if (!GET_ALLOC(HDRP(get_address)) && GET_SIZE(HDRP(get_address)) >= asize)
         {
             temp = get_address;
         }
@@ -342,15 +342,19 @@ void *mm_realloc(void *ptr, size_t size)
         size = ALIGN(size + DSIZE);
     if (size + DSIZE <= copySize) // (재할당 하려는 블록 사이즈 + 8 bytes(Header + Footer)) <= 현재 블록 사이즈
     {
+        //TODO : 이거 줄이고 뒤에 칸이 많이 비니깐
+        //조정이 필요하지 않을까?
         memmove(oldptr, oldptr, size + DSIZE);
         return oldptr; // 현재 블록에 재할당해도 문제 없기 때문에, 포인터만 반환
     }
     else // (재할당 하려는 블록 사이즈 + 8 bytes) > 현재 블록 사이즈
          // 경우에 따라서 인접 Free block을 활용하는 방안과, 새롭게 할당하는 방안을 이용해야 함
     {
+        //TODO : 뒤에 비어있는 칸이 있으니 먹긴하는데
+        //다 먹는 게 아니라면 빈칸 조정이 필요하지 않을까?
         size_t next_size = copySize + GET_SIZE(HDRP(NEXT_BLKP(oldptr))); // 현재 블록 사이즈 + 다음 블록 사이즈 = next_size
         size_t prev_size = copySize + GET_SIZE(HDRP(PREV_BLKP(oldptr))); // 이전 블록 사이즈
-        fix_link(oldptr);
+        fix_link(oldptr);  
         if (!GET_ALLOC(HDRP(NEXT_BLKP(oldptr))) && (size + DSIZE <= next_size))
         // 다음 블록이 Free block이고, (재할당 하려는 블록의 사이즈 + 8 bytes) <= (현재 블록 사이즈 + 다음 블록 사이즈)
         // 현재 블록과 다음 블록을 하나의 블록으로 취급해도 크기의 문제가 발생하지 않음
@@ -366,7 +370,6 @@ void *mm_realloc(void *ptr, size_t size)
         // 이전 블록과 현재 블록을 하나의 블록으로 취급해도 크기의 문제가 발생하지 않음
         // malloc을 하지 않아도 됨 -> 메모리 공간 및 시간적 이득을 얻을 수 있음
         {
-
             void *prev_ptr = PREV_BLKP(oldptr);      // 이전 블록의 bp
             memmove(prev_ptr, oldptr, copySize);     // 이전 블록의 bp로 현재 block의 메모리 영역을 옮긴다
             PUT(HDRP(prev_ptr), PACK(prev_size, 1)); // 이전 블록의 Header Block에, (이전 블록 사이즈 + 현재 블록 사이즈) 크기와 Allocated 상태 기입
@@ -380,6 +383,8 @@ void *mm_realloc(void *ptr, size_t size)
         // 이전 블록과 현재 블록과 다음 블록을 하나의 블록으로 취급해도 크기의 문제가 발생하지 않음
         // malloc을 하지 않아도 됨 -> 메모리 공간 및 시간적 이득을 어등ㄹ 수 있음
         {
+            //TODO : 뒤에 비어있는 칸이 있으니 먹긴하는데
+            //다 먹는 게 아니라면 빈칸 조정이 필요하지 않을까?
             void *prev_ptr = PREV_BLKP(oldptr);                             // 이전 블록의 bp
             memmove(prev_ptr, oldptr, copySize);                            // 이전 블록의 bp로 현재 block의 메모리 영역을 옮긴다
             PUT(HDRP(prev_ptr), PACK(prev_size + copySize + next_size, 1)); // 이전 블록의 Header Block에, (이전 블록 사이즈 + 현재 블록 사이즈 + 다음 블록 사이즈) 크기와 Allocated 상태 기입
